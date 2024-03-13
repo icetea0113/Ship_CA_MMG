@@ -1,5 +1,6 @@
 import mmg_coefficients
-import mmg_equations
+import mmg_equations_KLVCC2
+import mmg_equations_S175
 import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
@@ -21,15 +22,15 @@ def main():
         print(ship_type)
         n_const = 10.05
         max_δ_rad = -35 * np.pi / 180.0  # [rad]
-        rudder_rate = 12 * np.pi / 180.0
-        u0 = 0.879
+        rudder_rate = -12 * np.pi / 180.0
+        u0 = 0.89
 
     elif ship_type_str == "2":
         ship_type = mmg_coefficients.KVLCC2
         print(ship_type)
         n_const = 11.8
         max_δ_rad = -35 * np.pi / 180.0  # [rad]
-        rudder_rate = 11.8 * np.pi / 180.0
+        rudder_rate = -11.8 * np.pi / 180.0
         u0 = 1.1767
     else:
         Exception("Invalid ship type")
@@ -48,22 +49,19 @@ def main():
     sampling = duration * growing_rate
     time_list = np.linspace(0.00, duration, sampling)
     δ_rad_list = [0] * sampling
-    for i in range(1, len(time_list)):
-        Δt = time_list[i] - time_list[i - 1]
-        if max_δ_rad > 0:
-            δ = δ_rad_list[i - 1] + rudder_rate * Δt
-            if δ >= max_δ_rad:
-                δ = max_δ_rad
-            δ_rad_list[i] = δ
-        elif max_δ_rad <= 0:
-            δ = δ_rad_list[i - 1] - rudder_rate * Δt
-            if δ <= max_δ_rad:
-                δ = max_δ_rad
-            δ_rad_list[i] = δ
+    for i in range(1,sampling):
+        if np.abs(δ_rad_list[i-1]) >= np.abs(max_δ_rad):
+            δ_rad_list[i] = max_δ_rad  
+        else:
+            δ_rad_list[i] = δ_rad_list[i-1] + rudder_rate * (1 / growing_rate)
+            if np.abs(δ_rad_list[i]) > np.abs(max_δ_rad):
+                δ_rad_list[i] = max_δ_rad
     sol = 0
     npm_list = np.array([n_const for i in range(sampling)])
-    sol = mmg_equations.simulate(ship_type, time_list,δ_rad_list,npm_list, u0 = u0, v0=0.0, r0=0.0, method="RK45")
-
+    if ship_type.name == "KVLCC2":
+        sol = mmg_equations_KLVCC2.simulate(ship_type, time_list,δ_rad_list,npm_list, u0 = u0, v0=0.0, r0=0.0, method="RK45")
+    elif ship_type.name == "S175":
+        sol = mmg_equations_S175.simulate(ship_type, time_list,δ_rad_list,npm_list, u0 = u0, v0=0.0, r0=0.0, method="RK45")
 
     if sol == 0:
         Exception("Simulation failed")

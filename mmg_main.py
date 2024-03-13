@@ -1,6 +1,6 @@
 import turning_test, zig_zag_test
 
-__version__ = "1.1.0"
+__version__ = "1.0.0"
 def main():
     print("Version: ", __version__)
     print(
