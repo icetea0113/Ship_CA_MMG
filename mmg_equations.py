@@ -98,48 +98,51 @@ def HullForcesEquation_no_Added_mass(ship: mmg.Ship, u, v, r):
     global ρ
     v_m = v - ship.principal_dimensions.x_G * r
     U = np.sqrt(u**2 + v_m**2)
+    beta = 0.0 if U == 0.0 else np.arcsin(-v_m/U)
     v_dash = 0.0 if U == 0.0 else v_m / U
+    beta_or_v_dash = v_dash if ship.name != "S175" else beta
     r_dash = 0.0 if U == 0.0 else r * ship.principal_dimensions.Lpp / U
 
     R = 0.5 * ρ * ship.principal_dimensions.Lpp * ship.principal_dimensions.d * (u ** 2) * ship.maneuvering_params.X_uu if ship.maneuvering_params.X_uu != -1 \
     else 0.5 * ρ * ship.principal_dimensions.Lpp * ship.principal_dimensions.d * (U ** 2) * ship.maneuvering_params.R_0
 
     X_H = 0.5 * ρ * ship.principal_dimensions.Lpp * ship.principal_dimensions.d * (U ** 2) * (
-        ship.maneuvering_params.X_vv * (v_dash ** 2) +
+        ship.maneuvering_params.X_vv * (beta_or_v_dash ** 2) +
         ship.maneuvering_params.X_rr * (r_dash ** 2) +
-        ship.maneuvering_params.X_vr * v_dash * r_dash + 
-        ship.maneuvering_params.X_vvvv * (v_dash ** 4)
+        ship.maneuvering_params.X_vr * beta_or_v_dash * r_dash
+        + ship.maneuvering_params.X_vvvv * (beta_or_v_dash ** 4)
     ) - R
 
     Y_H = 0.5 * ρ * ship.principal_dimensions.Lpp * ship.principal_dimensions.d * (U ** 2) * (
-        ship.maneuvering_params.Y_v * v_dash +
+        ship.maneuvering_params.Y_v * beta_or_v_dash +
         ship.maneuvering_params.Y_r * r_dash +
-        ship.maneuvering_params.Y_vvv * (v_dash ** 3) +
-        ship.maneuvering_params.Y_vvr * (v_dash ** 2) * r_dash +
-        ship.maneuvering_params.Y_vrr * v_dash * (r_dash ** 2) +
+        ship.maneuvering_params.Y_vvv * (beta_or_v_dash ** 3) +
+        ship.maneuvering_params.Y_vvr * (beta_or_v_dash ** 2) * r_dash +
+        ship.maneuvering_params.Y_vrr * beta_or_v_dash * (r_dash ** 2) +
         ship.maneuvering_params.Y_rrr * (r_dash ** 3)
     )
 
     N_H = 0.5 * ρ * ship.principal_dimensions.Lpp ** 2 * ship.principal_dimensions.d * (U ** 2) * (
-        ship.maneuvering_params.N_v * v_dash +
+        ship.maneuvering_params.N_v * beta_or_v_dash +
         ship.maneuvering_params.N_r * r_dash +
-        ship.maneuvering_params.N_vvv * (v_dash ** 3) +
-        ship.maneuvering_params.N_vvr * (v_dash ** 2) * r_dash +
-        ship.maneuvering_params.N_vrr * v_dash * (r_dash ** 2) +
+        ship.maneuvering_params.N_vvv * (beta_or_v_dash ** 3) +
+        ship.maneuvering_params.N_vvr * (beta_or_v_dash ** 2) * r_dash +
+        ship.maneuvering_params.N_vrr * beta_or_v_dash * (r_dash ** 2) +
         ship.maneuvering_params.N_rrr * (r_dash ** 3)
     )
     return X_H, Y_H, N_H
 
 def Propeller_RudderForcesEquation(ship: mmg.Ship, npm, u, v, r, δ, state = 0):
     global ρ
-    v_m = v - ship.principal_dimensions.x_G * r    
+    v_m = v - ship.principal_dimensions.x_G * r  
     U = np.sqrt(u**2 + v_m**2)
-    v_dash = 0.0 if U == 0.0 else v_m / U
     r_dash = 0.0 if U == 0.0 else r * ship.principal_dimensions.Lpp / U
 
     β = 0.0 if U == 0.0 else np.arctan2(-v_m, u)
     β_p = β - ship.principal_dimensions.x_P * r_dash
-    C_2 = ship.principal_dimensions.C_2_minus if β_p < 0.0 else ship.principal_dimensions.C_2_plus
+    if ship.name != "S175":
+        C_2 = ship.principal_dimensions.C_2_minus if β_p < 0.0 else ship.principal_dimensions.C_2_plus
+
     w_P = ship.principal_dimensions.w_P0 * np.exp(ship.principal_dimensions.C_1 * (β_p) ** 2) if ship.name == "S175" else \
     -1 * ((1 + (1 - np.exp(-1 * ship.principal_dimensions.C_1*np.abs(β_p))) * (C_2 - 1)) * (1 - ship.principal_dimensions.w_P0) - 1)
 
@@ -148,24 +151,48 @@ def Propeller_RudderForcesEquation(ship: mmg.Ship, npm, u, v, r, δ, state = 0):
     X_P = (1 - ship.principal_dimensions.t_p) * ρ * (npm ** 2) * (ship.principal_dimensions.D_p ** 4) * K_T
 
     β_R = β - ship.principal_dimensions.l_R * r_dash
-    γ_R = ship.principal_dimensions.γ_R_minus if β_R < 0.0 else ship.principal_dimensions.γ_R_plus
-    v_R = U * γ_R * β_R
-    u_R = (
-            np.sqrt(ship.principal_dimensions.η * (ship.principal_dimensions.κ * ship.principal_dimensions.ϵ * 8.0 * ship.principal_dimensions.k_0 * npm**2 * ship.principal_dimensions.D_p**4 / np.pi) ** 2)
-            if J_P == 0.0
-            else
-            u 
+
+
+    if ship.name != "S175":
+        γ_R = ship.principal_dimensions.γ_R_minus if  β_R < 0.0 else ship.principal_dimensions.γ_R_plus
+        u_R = (
+                np.sqrt(ship.principal_dimensions.η * (ship.principal_dimensions.κ * ship.principal_dimensions.ϵ * 8.0 * ship.principal_dimensions.k_0 * npm**2 * ship.principal_dimensions.D_p**4 / np.pi) ** 2)
+                if J_P == 0.0
+                else
+                u 
+                * (1 - w_P)
+                * ship.principal_dimensions.ϵ
+                * np.sqrt(
+                    ship.principal_dimensions.η * (1.0 + ship.principal_dimensions.κ * (np.sqrt(1.0 + 8.0 * K_T / (np.pi * J_P**2)) - 1)) ** 2
+                    + (1 - ship.principal_dimensions.η)
+                )
+            )
+    elif ship.name == "S175":
+        γ_R = ship.principal_dimensions.γ_R_minus if  v >= 0.0 else ship.principal_dimensions.γ_R_plus
+
+        u_R = (u 
             * (1 - w_P)
             * ship.principal_dimensions.ϵ
-            * np.sqrt(
-                ship.principal_dimensions.η * (1.0 + ship.principal_dimensions.κ * (np.sqrt(1.0 + 8.0 * K_T / (np.pi * J_P**2)) - 1)) ** 2
-                + (1 - ship.principal_dimensions.η)
-            )
+            * np.sqrt(1.0 + ship.principal_dimensions.κ *(8.0 * K_T / (np.pi * J_P**2)))
         )
+
+        # u_R = (
+        #     np.sqrt(ship.principal_dimensions.η * (ship.principal_dimensions.κ * ship.principal_dimensions.ϵ * 8.0 * ship.principal_dimensions.k_0 * npm**2 * ship.principal_dimensions.D_p**4 / np.pi) ** 2)
+        #     if J_P == 0.0
+        #     else
+        #     u 
+        #     * (1 - w_P)
+        #     * ship.principal_dimensions.ϵ
+        #     * np.sqrt(
+        #         ship.principal_dimensions.η * (1.0 + ship.principal_dimensions.κ * (np.sqrt(1.0 + 8.0 * K_T / (np.pi * J_P**2)) - 1)) ** 2
+        #     ))
+    
+    v_R = U * γ_R * β_R
+
     a_R = δ - np.arctan2(v_R, u_R)
     U_R = np.sqrt(u_R**2 + v_R**2)
+
     F_N = 0.5 * ρ * ship.principal_dimensions.A_r * (U_R ** 2) * ship.principal_dimensions.f_a * np.sin(a_R)
-    
     if state == 1:
         global Fn_global
         Fn_global.append(F_N/9.81)
@@ -198,8 +225,9 @@ def zigzag_test_mmg_3dof(
     vectorized=False,
     **options
 ):
-    target_ψ_rad_deviation = np.abs(target_ψ_rad_deviation)
     print(ship)
+    target_ψ_rad_deviation = np.abs(target_ψ_rad_deviation)
+
     final_δ_list = [0.0] * len(time_list)
     final_u_list = [0.0] * len(time_list)
     final_v_list = [0.0] * len(time_list)
@@ -269,7 +297,6 @@ def zigzag_test_mmg_3dof(
         # ship = ShipObj3dof(L=basic_params.L_pp, B=basic_params.B)
         # ship.load_simulation_result(time_list, u_list, v_list, r_list, psi0=ψ)
 
-        # get finish index
         target_ψ_rad = ψ0 + target_ψ_rad_deviation
         if target_δ_rad < 0:
             target_ψ_rad = ψ0 - target_ψ_rad_deviation
@@ -297,12 +324,10 @@ def zigzag_test_mmg_3dof(
             final_x_list[start_index:next_stage_index] = x_list
             final_y_list[start_index:next_stage_index] = y_list
             final_ψ_list[start_index:next_stage_index] = ψ_list
-    final_r_list = [r * 180 / np.pi for r in final_r_list]
     for t, u, v, r, δ, npm in zip(time_list, final_u_list, final_v_list, final_r_list, final_δ_list, npm_list):
             # u, v, r, δ, npm 값에 기반해 해당 시점에서의 F_N 값을 계산
             Propeller_RudderForcesEquation(ship, npm, u, v, r, δ, 1)  # 이 함수를 수정하여 F_N을 반환하도록 함
     print(len(Fn_global))
-    final_r_list = [r * 180 / np.pi for r in final_r_list]
     ship.F_N = Fn_global
     return (
         final_δ_list,

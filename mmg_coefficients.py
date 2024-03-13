@@ -35,7 +35,7 @@ class ManeuveringParams:
     N_rrr:float
     R_0:float = -1
     X_uu:float = -1
-    X_vvvv:float = -1
+    X_vvvv:float = 0
 
 @dataclasses.dataclass
 class PrincipalDimensions:
@@ -165,10 +165,10 @@ class Ship:
             plt.plot(self.y / self.principal_dimensions.Lpp , self.x / self.principal_dimensions.Lpp, color="limegreen" )
             plt.xlabel(r"$y$")
             plt.ylabel(r"$x$")
-            plt.xlim(-5,1,1)
-            plt.ylim(-2,4,1)
-        if aspect_equal:
-            plt.gca().set_aspect("equal")
+            plt.xlim(-5,1)
+            plt.ylim(-2,4)
+            if aspect_equal:
+                plt.gca().set_aspect("equal")
         if save_fig_path is not None:
             save_fig_path = "result/" + save_fig_path
             plt.savefig(save_fig_path, dpi=300)
@@ -309,8 +309,8 @@ class Ship:
         else:
             plt.plot(target_x, target_y, fmt,color="limegreen", **kwargs)
         if len(x_lim) != 0:
-            plt.xlim(x_lim[0],x_lim[1],x_lim[2])
-            plt.ylim(y_lim[0],y_lim[1],y_lim[2])
+            plt.xlim(x_lim[0],x_lim[1])
+            plt.ylim(y_lim[0],y_lim[1])
         if save_fig_path is not None:
             save_fig_path = "result/" + save_fig_path
             plt.savefig(save_fig_path)
