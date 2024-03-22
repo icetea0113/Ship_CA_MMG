@@ -1,5 +1,4 @@
 import mmg_coefficients as mmg
-import wave_data_check
 from typing import List
 import numpy as np
 
@@ -10,8 +9,7 @@ import scipy.special as sp
 
 ρ = 1025.0
 Fn_global = []
-velocitys = []
-ixdr = 0
+
 def simulate_mmg_3dof(
     ship: mmg.Ship,
     time_list: List[float],
@@ -53,10 +51,7 @@ def simulate(ship: mmg.Ship, time_list: List[float], δ_list: List[float], npm_l
 
     def MMG_3dof_eom_solve_ivp(t, X):
         u, v, r, x, y, ψ, δ, npm = X
-        # global ixdr
-        # ixdr += 1
-        # print("ixdr: ", ixdr)
-        d_u, d_v, d_r = MotionEquation(ship, npm, u, v, r, δ, ψ, Wave_function_var, state)
+        d_u, d_v, d_r = MotionEquation(ship, npm, u, v, r, δ, Wave_function_var, state)
         d_x = u * np.cos(ψ) - v * np.sin(ψ)
         d_y = u * np.sin(ψ) + v * np.cos(ψ)
         d_ψ = r
@@ -77,15 +72,14 @@ def simulate(ship: mmg.Ship, time_list: List[float], δ_list: List[float], npm_l
     )
     return sol
     
-def MotionEquation(ship: mmg.Ship, npm, u, v, r, δ, ψ, Wave_function_var, state = "No-wave"):
+def MotionEquation(ship: mmg.Ship, npm, u, v, r, δ, Wave_function_var, state = "No-wave"):
     X_H, Y_H, N_H = HullForcesEquation_no_Added_mass(ship, u, v, r)
     X_P, X_R, Y_R, N_R = Propeller_RudderForcesEquation(ship, npm, u, v, r, δ)
 
-    if state == "wave":
-        wave_frequency, wave_angle, wave_amplitude = Wave_function_var
-        X_W, Y_W, N_W = WaveForceEquation(ship, u, v, r, ψ, wave_frequency, wave_angle, wave_amplitude)
-        #print("X_W: ", X_W, ", Y_W: ", Y_W, ", N_W: ", N_W )
-    elif state == "no-wave":
+    if state == "Wave":
+        entrance_run_angle, wave_frequency, wave_angle, wave_amplitude = Wave_function_var
+        X_W, Y_W, N_W = WaveForceEquation(ship, u, v, r, entrance_run_angle, wave_frequency, wave_angle, wave_amplitude)
+    elif state == "No-wave":
         X_W, Y_W, N_W = 0, 0, 0
     else:
         raise ValueError("Invalid state")
@@ -106,15 +100,7 @@ def MotionEquation(ship: mmg.Ship, npm, u, v, r, δ, ψ, Wave_function_var, stat
     dr = (N_R + N_H + N_W - ship.principal_dimensions.x_G * m * (dv_m + u * r)) / (ship.principal_dimensions.I_zz + J_x + ship.principal_dimensions.x_G ** 2 * m)
 
     dv = dv_m + ship.principal_dimensions.x_G * dr
-    # print("X_H: ", X_H, ", Y_H: ", Y_H, ", N_H: ", N_H, ", X_P: ", X_P, ", X_R: ", X_R, ", Y_R: ", Y_R, ", N_R: ", N_R, ", X_W: ", X_W, ", Y_W: ", Y_W, ", N_W: ", N_W, "\n")
-    
-    # global velocitys
-    # velocity_model = np.sqrt(u**2 + v**2) * 1.944
-    # velocity = velocity_model * np.sqrt(170 / ship.principal_dimensions.Lpp)
-    # velocitys.append(velocity)
-    # print(velocitys)
-    # print(len(velocitys))
-
+    print("X_H: ", X_H, ", Y_H: ", Y_H, ", N_H: ", N_H, ", X_P: ", X_P, ", X_R: ", X_R, ", Y_R: ", Y_R, ", N_R: ", N_R, ", X_W: ", X_W, ", Y_W: ", Y_W, ", N_W: ", N_W, "\n")
     return du, dv, dr
 
 def HullForcesEquation_no_Added_mass(ship: mmg.Ship, u, v, r):
@@ -229,35 +215,34 @@ def Propeller_RudderForcesEquation(ship: mmg.Ship, npm, u, v, r, δ, state = 0):
 
     return X_P, X_R, Y_R, N_R
 
-def WaveForceEquation(ship: mmg.Ship, u, v, r, ψ, wave_frequency, wave_angle, wave_amplitude):
-    if ship.name == "S175":
-        L = 170 
-        B = 25.4
-    wave_amplitude = 0.01 * ship.principal_dimensions.Lpp
-    velocity_model = np.sqrt(u**2 + v**2) * 1.944
-    velocity = velocity_model * np.sqrt(170 / ship.principal_dimensions.Lpp)
-    
-    global velocitys
-    velocitys.append(velocity)
-    print(velocitys)
-    print(len(velocitys))
-    
-    if velocity < 0.2:
-        velocity = 0.2
-        
-    if ψ < 0:
-        ship_angle = -(-ψ % (2 * np.pi)) * (180 / np.pi)
-    else:
-        ship_angle = (ψ % (2 * np.pi)) * (180 / np.pi)
+def WaveForceEquation(ship: mmg.Ship, u, v, r, entrance_run_angle, wave_frequency, wave_angle, wave_amplitude):
+    if ship.name == "KVLCC2":
+        k = 2 * np.pi / wave_frequency
+    elif ship.name == "S175":
+        k = wave_frequency ** 2 / 9.81
+        k = 2 * np.pi / wave_frequency
+    d = ship.principal_dimensions.d
+    b = ship.principal_dimensions.B / ship.principal_dimensions.Lpp
+    I1 = sp.iv(1, 1.5*k*d)
+    K1 = sp.kv(1, 1.5*k*d)
+    alpha_1 = (np.pi ** 2 * I1 ** 2)/(np.pi**2 * I1**2 + K1**2)
+    mu = b / np.tan(entrance_run_angle)
+    # print("alpha_1: ", alpha_1, ", mu: ", mu, ", k: ", k, ", I1: ", I1, ", K1: ", K1, ", entrance_run angle: ", entrance_run_angle, ", wave_angle: ", wave_angle, "\n")
 
-    X_W, Y_W, N_W = wave_data_check.match_wave_force(ship, velocity, ship_angle, wave_angle, wave_frequency)
-    X_W = X_W * 1025 / (1025 * 9.81 * B ** 2 * 1 ** 2 / L) * (1025 * 9.81 * ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
-    Y_W = -Y_W * 1025 / (1025 * 9.81 * B ** 2 * 1 ** 2 / L) * (1025 * 9.81 * ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
-    N_W = -N_W * 1025 / (1025 * 9.81 * B ** 3 * 1 ** 2 / L) * (1025 * 9.81 * ship.principal_dimensions.B ** 3 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
-    '''
-    왜 X_W에는 -1을 곱하지 않고
-    Y_W, N_W에는 -1을 곱하면 값이 정확하게 맞는지 찾아보기.
-    '''
+    X_W_dash = -0.5 * alpha_1 * b * (
+    np.sin(entrance_run_angle + wave_angle) * abs(np.sin(entrance_run_angle + wave_angle)) +
+    np.sin(entrance_run_angle - wave_angle) * abs(np.sin(entrance_run_angle - wave_angle)))
+    Y_W_dash = 1 * alpha_1 * (
+        (1 - mu) *  np.sin(wave_angle) * abs(np.sin(wave_angle)) +
+        0.5 * mu * (np.sin(entrance_run_angle + wave_angle) * abs(np.sin(entrance_run_angle + wave_angle)) -
+        np.sin(entrance_run_angle - wave_angle) * abs(np.sin(entrance_run_angle - wave_angle)))
+    )
+    N_W_dash = alpha_1 * b * (0.5 * mu - np.cos(entrance_run_angle) ** 2) * np.sin(wave_angle) * np.cos(wave_angle)
+
+    X_W = 0.5 * ρ * 9.81 * ship.principal_dimensions.Lpp * wave_amplitude ** 2 * X_W_dash
+    Y_W = 0.5 * ρ * 9.81 * ship.principal_dimensions.Lpp * wave_amplitude ** 2 * Y_W_dash
+    N_W = 0.5 * ρ * 9.81 * ship.principal_dimensions.Lpp ** 2 * wave_amplitude ** 2 * N_W_dash
+
     return X_W, Y_W, N_W
 
 def zigzag_test_mmg_3dof(

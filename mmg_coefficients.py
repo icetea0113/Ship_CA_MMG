@@ -165,8 +165,9 @@ class Ship:
             plt.plot(self.y / self.principal_dimensions.Lpp , self.x / self.principal_dimensions.Lpp, color="limegreen" )
             plt.xlabel(r"$y$")
             plt.ylabel(r"$x$")
-            plt.xlim(-5,1)
-            plt.ylim(-2,4)
+            plt.xlim(-7,1)
+            plt.ylim(-3,4)
+            plt.plot()
             if aspect_equal:
                 plt.gca().set_aspect("equal")
         if save_fig_path is not None:
@@ -308,9 +309,9 @@ class Ship:
             plt.plot(target_x, target_y, color="limegreen",**kwargs)
         else:
             plt.plot(target_x, target_y, fmt,color="limegreen", **kwargs)
-        if len(x_lim) != 0:
-            plt.xlim(x_lim[0],x_lim[1])
-            plt.ylim(y_lim[0],y_lim[1])
+        # if len(x_lim) != 0:
+        #     plt.xlim(x_lim[0],x_lim[1])
+        #     plt.ylim(y_lim[0],y_lim[1])
         if save_fig_path is not None:
             save_fig_path = "result/" + save_fig_path
             plt.savefig(save_fig_path)

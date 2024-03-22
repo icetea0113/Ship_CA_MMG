@@ -14,7 +14,7 @@ def main():
 1. S175 Container Ship\n\
 2. KVLCC2 Tanker\n\
 **************************")
-    
+
     ship_type_str = input("Enter ship type: ")
     if ship_type_str == "1":
         ship_type = mmg_coefficients.S175
