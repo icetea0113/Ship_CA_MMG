@@ -14,3 +14,4 @@ wave_data/S175/SWAN_DRIFT_2kts_0.0ms.txt
 wave_data/S175/SWAN_DRIFT_4kts_0.0ms.txt
 wave_data/S175/SWAN_DRIFT_6kts_0.0ms.txt
 wave_data/S175/SWAN_DRIFT_8kts_0.0ms.txt
+polar_diagram.py
