@@ -11,7 +11,7 @@ import scipy.special as sp
 ρ = 1025.0
 Fn_global = []
 velocitys = []
-ixdr = 0
+ship_gps_data = []
 def simulate_mmg_3dof(
     ship: mmg.Ship,
     time_list: List[float],
@@ -53,15 +53,14 @@ def simulate(ship: mmg.Ship, time_list: List[float], δ_list: List[float], npm_l
 
     def MMG_3dof_eom_solve_ivp(t, X):
         u, v, r, x, y, ψ, δ, npm = X
-        # global ixdr
-        # ixdr += 1
-        # print("ixdr: ", ixdr)
-        d_u, d_v, d_r = MotionEquation(ship, npm, u, v, r, δ, ψ, Wave_function_var, state)
+        d_u, d_v, d_r = MotionEquation(ship, t, npm, u, v, r, δ, ψ, Wave_function_var, state)
         d_x = u * np.cos(ψ) - v * np.sin(ψ)
         d_y = u * np.sin(ψ) + v * np.cos(ψ)
         d_ψ = r
         d_δ = derivative(spl_δ, t)
         d_npm = derivative(spl_npm, t)
+        global ship_gps_data
+        ship_gps_data.append([t, x/ship.principal_dimensions.Lpp, y/ship.principal_dimensions.Lpp, ψ])
         return [d_u, d_v, d_r, d_x, d_y, d_ψ, d_δ, d_npm]
 
     sol = solve_ivp(
@@ -77,14 +76,13 @@ def simulate(ship: mmg.Ship, time_list: List[float], δ_list: List[float], npm_l
     )
     return sol
     
-def MotionEquation(ship: mmg.Ship, npm, u, v, r, δ, ψ, Wave_function_var, state = "No-wave"):
+def MotionEquation(ship: mmg.Ship, t, npm, u, v, r, δ, ψ, Wave_function_var, state = "No-wave"):
     X_H, Y_H, N_H = HullForcesEquation_no_Added_mass(ship, u, v, r)
     X_P, X_R, Y_R, N_R = Propeller_RudderForcesEquation(ship, npm, u, v, r, δ)
 
     if state == "wave":
         wave_frequency, wave_angle, wave_amplitude = Wave_function_var
-        X_W, Y_W, N_W = WaveForceEquation(ship, u, v, r, ψ, wave_frequency, wave_angle, wave_amplitude)
-        #print("X_W: ", X_W, ", Y_W: ", Y_W, ", N_W: ", N_W )
+        X_W, Y_W, N_W = WaveForceEquation(ship, t, u, v, r, ψ, wave_frequency, wave_angle, wave_amplitude)
     elif state == "no-wave":
         X_W, Y_W, N_W = 0, 0, 0
     else:
@@ -107,14 +105,6 @@ def MotionEquation(ship: mmg.Ship, npm, u, v, r, δ, ψ, Wave_function_var, stat
 
     dv = dv_m + ship.principal_dimensions.x_G * dr
     # print("X_H: ", X_H, ", Y_H: ", Y_H, ", N_H: ", N_H, ", X_P: ", X_P, ", X_R: ", X_R, ", Y_R: ", Y_R, ", N_R: ", N_R, ", X_W: ", X_W, ", Y_W: ", Y_W, ", N_W: ", N_W, "\n")
-    
-    # global velocitys
-    # velocity_model = np.sqrt(u**2 + v**2) * 1.944
-    # velocity = velocity_model * np.sqrt(170 / ship.principal_dimensions.Lpp)
-    # velocitys.append(velocity)
-    # print(velocitys)
-    # print(len(velocitys))
-
     return du, dv, dr
 
 def HullForcesEquation_no_Added_mass(ship: mmg.Ship, u, v, r):
@@ -229,35 +219,55 @@ def Propeller_RudderForcesEquation(ship: mmg.Ship, npm, u, v, r, δ, state = 0):
 
     return X_P, X_R, Y_R, N_R
 
-def WaveForceEquation(ship: mmg.Ship, u, v, r, ψ, wave_frequency, wave_angle, wave_amplitude):
+def WaveForceEquation(ship: mmg.Ship, t, u, v, r, ψ, wave_frequency, wave_angle, wave_amplitude):
     if ship.name == "S175":
         L = 170 
         B = 25.4
+        L_real = 170.0
+        
+    if ship.name == "KVLCC2":
+        L = 3.2
+        B = 0.58
+        L_real = 320.0
+
     wave_amplitude = 0.01 * ship.principal_dimensions.Lpp
     velocity_model = np.sqrt(u**2 + v**2) * 1.944
-    velocity = velocity_model * np.sqrt(170 / ship.principal_dimensions.Lpp)
-    
-    global velocitys
-    velocitys.append(velocity)
-    print(velocitys)
-    print(len(velocitys))
-    
-    if velocity < 0.2:
-        velocity = 0.2
-        
+    velocity = velocity_model * np.sqrt(L_real / ship.principal_dimensions.Lpp)
+    # global velocitys
+    # velocitys.append(velocity)
+    # print(velocitys)
+
+    if ship.name == "S175":
+        if velocity < 0.2:
+            print(velocity)
+            print(f"Danger! Velocity under 0.2 knots. Exception raised velocity is {velocity} at time {t}")
+            velocity = 0.2
+        if velocity > 12:
+            print(velocity)
+            print(f"Danger! Velocity over 12 knots. Exception raised velocity is {velocity} at time {t}")
+            velocity = 12
+    if ship.name == "KVLCC2":
+        if velocity > 15:
+            print(f"Danger! Velocity over 15 knots. Exception raised velocity is {velocity} at time {t}")
+            velocity = 15
+        if velocity < 3.2:
+            print(f"Danger! Velocity under 3.2 knots. Exception raised velocity is {velocity} at time {t}")
+            velocity = 3.2
+
     if ψ < 0:
         ship_angle = -(-ψ % (2 * np.pi)) * (180 / np.pi)
     else:
         ship_angle = (ψ % (2 * np.pi)) * (180 / np.pi)
 
     X_W, Y_W, N_W = wave_data_check.match_wave_force(ship, velocity, ship_angle, wave_angle, wave_frequency)
-    X_W = X_W * 1025 / (1025 * 9.81 * B ** 2 * 1 ** 2 / L) * (1025 * 9.81 * ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
-    Y_W = -Y_W * 1025 / (1025 * 9.81 * B ** 2 * 1 ** 2 / L) * (1025 * 9.81 * ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
-    N_W = -N_W * 1025 / (1025 * 9.81 * B ** 3 * 1 ** 2 / L) * (1025 * 9.81 * ship.principal_dimensions.B ** 3 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
-    '''
-    왜 X_W에는 -1을 곱하지 않고
-    Y_W, N_W에는 -1을 곱하면 값이 정확하게 맞는지 찾아보기.
-    '''
+    if ship.name == "S175":
+        X_W = X_W * 1025 / (B ** 2 * 1 ** 2 / L) * (ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
+        Y_W = -Y_W * 1025 / (B ** 2 * 1 ** 2 / L) * (ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
+        N_W = -N_W * 1025 / (B ** 3 * 1 ** 2 / L) * (ship.principal_dimensions.B ** 3 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
+    if ship.name == "KVLCC2":
+        X_W = X_W * 1025 / (B ** 2 * 1 ** 2 / L) * (ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
+        Y_W = -Y_W * 1025 / (B ** 2 * 1 ** 2 / L) * (ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
+        N_W = -N_W * 1025 / (B ** 2 * 1 ** 2 / L) * (ship.principal_dimensions.B ** 2 * wave_amplitude ** 2 / ship.principal_dimensions.Lpp)
     return X_W, Y_W, N_W
 
 def zigzag_test_mmg_3dof(
@@ -393,3 +403,17 @@ def zigzag_test_mmg_3dof(
         final_y_list,
         final_ψ_list,
     )
+
+def calculate_drift_data():
+    global ship_gps_data
+    # Assuming ship_gps_data is a list of lists, with each inner list containing [time, x, y, angle]
+
+    # Extract time, x, and y data
+    time_data = [data[0] for data in ship_gps_data]
+    x_data = [data[1] for data in ship_gps_data]
+    y_data = [data[2] for data in ship_gps_data]
+    angle_data = [data[3] for data in ship_gps_data]
+    
+    with open('ship_gps_time_angle_data.txt', 'w') as f:
+        for time, x, y, angle in zip(time_data, x_data, y_data, angle_data):
+            f.write(f"{time},{x},{y},{angle}\n")

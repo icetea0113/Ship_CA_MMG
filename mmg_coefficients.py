@@ -165,8 +165,8 @@ class Ship:
             plt.plot(self.y / self.principal_dimensions.Lpp , self.x / self.principal_dimensions.Lpp, color="limegreen" )
             plt.xlabel(r"$y$")
             plt.ylabel(r"$x$")
-            plt.xlim(-7,1)
-            plt.ylim(-3,4)
+            plt.xlim(-2,4)
+            plt.ylim(-2,4)
             plt.plot()
             if aspect_equal:
                 plt.gca().set_aspect("equal")

@@ -2,14 +2,34 @@ import os
 import mmg_coefficients
 wave_force = {}
 relative_angle = []
-def main():
+
+def main(ship=0):
     print("Wave data read code excute")
 
     now_path = os.getcwd()
-    data_path = os.path.join(now_path, 'wave_data')
-    velocity = [0.2, 2, 4, 6, 8 ,10, 12]
+    ship_wave_data_folder_name = 'wave_data/'+str(ship.name)
+    data_path = os.path.join(now_path, ship_wave_data_folder_name)
+    if ship.name == "S175":
+        S175_wave_force(ship, data_path)
+    elif ship.name == "KVLCC2":
+        KVLCC2_wave_force(ship, data_path)
+    else:
+        print("No wave data available for the given ship type.")
+        return None
+
+    print("Wave data read and make dictionary complete")
+
+    if __name__ == "wave_data_check":
+        print("Return " + ship.name + " wave_force data and this code close")
+        return 0
+    elif __name__ == "__main__":
+        # print(wave_force)
+        return 0
+
+def S175_wave_force(ship, data_path):
+    velocity_list = [0.2, 2, 4, 6, 8 ,10, 12]
     global wave_force
-    for velocity in velocity:
+    for velocity in velocity_list:
         data_name = "SWAN_DRIFT_" + str(velocity) + "kts_0.0ms.txt"
         data_file = os.path.join(data_path, data_name)
         data = []
@@ -40,14 +60,53 @@ def main():
                     wave_force_velocity[heading_angle] = list(wave_force_data)
         wave_force[velocity] = wave_force_velocity
 
-    print("Wave data read and make dictionary complete")
-
-    if __name__ == "wave_data_check":
-        print("Return wave_force data and this code close")
-        return 0
-    elif __name__ == "__main__":
-        # print(wave_force)
-        return 0
+def KVLCC2_wave_force(ship, data_path):
+    global wave_force
+    lambda_L_list = [0.3, 0.5, 0.7, 0.9, 1, 1.1, 1.2, 1.5]
+    Fn_knots = {0.03: 3.2, 0.055: 6, 0.1: 11, 0.142: 15}
+    for lambda_L in lambda_L_list:
+        data_name = "WISH_" + str(lambda_L) + "L.txt"
+        data_file = os.path.join(data_path, data_name)
+        data = []
+        for line in open(data_file, 'r').readlines():
+            data.append(line.split())
+        
+        read_line_position = 2
+        Froude_number_data = True
+        wave_force_lambda_L = {}
+        
+        while read_line_position < len(data):
+            if Froude_number_data:
+                Froude_number = Fn_knots[float(data[read_line_position][0][3:])]
+                wave_force_data = []
+                read_line_position += 1
+                wave_angle = 0
+                Froude_number_data = False
+            else:
+                X_W = float(data[read_line_position][0])
+                Y_W = float(data[read_line_position][1])
+                N_W = float(data[read_line_position][2])
+                wave_force_data_element = [wave_angle, X_W, Y_W, N_W]
+                wave_force_data.append(wave_force_data_element)
+                wave_angle += 30
+                read_line_position += 1
+                
+                if wave_angle > 360:
+                    Froude_number_data = True
+                    wave_force_lambda_L[Froude_number] = list(wave_force_data)
+        wave_force[lambda_L] = wave_force_lambda_L
+    
+    new_waveforce = {}
+    for wavelength, velocity_dict in wave_force.items():
+        for velocity, data_list in velocity_dict.items():
+            if velocity not in new_waveforce:
+                new_waveforce[velocity] = {}
+            for data in data_list:
+                angle = data[0]
+                if angle not in new_waveforce[velocity]:
+                    new_waveforce[velocity][angle] = []
+                new_waveforce[velocity][angle].append([wavelength] + data[1:])  # data[1:] is [X, Y, Z]
+    wave_force = new_waveforce
 
 def match_wave_force(ship, velocity, ship_heading_angle, wave_angle, wave_length):
     global wave_force
@@ -60,7 +119,7 @@ def match_wave_force(ship, velocity, ship_heading_angle, wave_angle, wave_length
         wave_force[velocity][heading_angle][wave_length][X_W, Y_W, N_W] 
     '''
     
-    data_velocities = [0.2, 2, 4, 6, 8 ,10, 12]
+    
     data_headings = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360]
     
     relative_wave_angle = wave_angle + ship_heading_angle
@@ -81,7 +140,10 @@ def match_wave_force(ship, velocity, ship_heading_angle, wave_angle, wave_length
             wave_length = 0.6
         elif wave_length == 1.2:
             wave_length = 0.55
-            
+        data_velocities = [0.2, 2, 4, 6, 8 ,10, 12]
+    elif ship.name == "KVLCC2":
+        data_velocities = [3.2, 6, 11, 15]
+
     if velocity in data_velocities:
         if relative_wave_angle in data_headings:
             wave_force_data = wave_force[velocity][relative_wave_angle]
@@ -165,51 +227,84 @@ def match_wave_force(ship, velocity, ship_heading_angle, wave_angle, wave_length
                 return None        
         
         
-def wave_force_plot():
+def wave_force_plot(ship):
     import matplotlib.pyplot as plt
     import numpy as np
-    import mmg_coefficients
-
     global wave_force
-    wave_force_1 = wave_force[12]
-    L = 170
-    B = 25.4
-    wave_length = [(2*np.pi*9.81/L)/(0.350 + 0.050 * i)**2 for i in range(0, 11)]
-    print(wave_length)
-    heading_angle = 180
-    wave_force_data = wave_force_1[heading_angle]
-    ship_type = mmg_coefficients.S175
-    X_W = []
-    Y_W = []
-    N_W = []
-    wave_amplitude = 1
-    print((1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
-    for i in wave_force_data:
-        X_W.append(-i[1] * 1025/ (1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
-        Y_W.append(-i[2] * 1025/ (1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
-        N_W.append(-i[3] * 1025/ (1025 * 9.81 * B ** 3 * wave_amplitude ** 2 / L))
+    
+    if ship.name == "S175":
+        wave_force_1 = wave_force[12]
+        L = 170
+        B = 25.4
+        wave_length = [(2*np.pi*9.81/L)/(0.350 + 0.050 * i)**2 for i in range(0, 11)]
+        print(wave_length)
+        heading_angle = 270
+        wave_force_data = wave_force_1[heading_angle]
+        ship_type = mmg_coefficients.S175
+        X_W = []
+        Y_W = []
+        N_W = []
+        wave_amplitude = 1
+        print((1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
+        for i in wave_force_data:
+            X_W.append(-i[1] * 1025/ (1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
+            Y_W.append(-i[2] * 1025/ (1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
+            N_W.append(-i[3] * 1025/ (1025 * 9.81 * B ** 3 * wave_amplitude ** 2 / L))
+        # print(X_W, Y_W, N_W)
+        # plt.plot(wave_length, X_W, color = "limegreen")
+        # plt.plot(wave_length, Y_W, color = "limegreen")
+        plt.plot(wave_length, N_W, color = "limegreen")
+        plt.xlabel("wave_length")
+        plt.xlim(0,3)
+        plt.ylabel("Wave force [N]")
+        plt.ylim(-1,5)
+        plt.title("Wave force")
+        plt.show()
 
-    # print(X_W, Y_W, N_W)
-    plt.plot(wave_length, X_W, label = "X_W")
-    # plt.plot(wave_length, Y_W, label = "Y_W")
-    # plt.plot(wave_length, N_W, label = "N_W")
-    plt.legend()
-    plt.xlabel("wave_length")
-    plt.xlim(0,3)
-    plt.ylabel("Wave force [N]")
-    plt.ylim(-1,18)
-    plt.title("Wave force")
-    plt.show()
-
+    if ship.name == "KVLCC2":
+        wave_force_1 = wave_force[6]        
+        L = 320.0 / 100
+        B = 58.0 / 100
+        wave_length = [0.3, 0.5, 0.7, 0.9, 1, 1.1, 1.2, 1.5]
+        wave_angle = [0, 30, 60, 90, 120, 150, 180]
+        for heading_angle in wave_angle:
+            wave_force_data = wave_force_1[heading_angle]
+            X_W = []
+            Y_W = []
+            N_W = []
+            wave_amplitude = 1
+            for i in wave_force_data:
+                X_W.append(-i[1] * 1025/ (1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
+                Y_W.append(i[2] * 1025/ (1025 * 9.81 * B ** 2 * wave_amplitude ** 2 / L))
+                N_W.append(i[3] * 1025/ (1025 * 9.81 * (B ** 2) * wave_amplitude ** 2 / L))
+            
+            for idx, (force, label) in enumerate(zip([X_W, Y_W, N_W], ["X_W", "Y_W", "N_W"])):
+                plt.figure(idx)
+                plt.plot(wave_length, force, color = "limegreen")
+                plt.xlabel("wave_length")
+                plt.xlim(0,2)
+                plt.ylabel("Wave force [N]")
+                plt.title(f"Wave force for {label}")
+                ppt_image_path = "../../Lab_meeting_2nd/PPT_사진/KVLCC2/"
+                if label == "X_W":
+                    file_name = "Surge drift force " + str(heading_angle)
+                    plt.ylim(-3,5)
+                elif label == "Y_W":
+                    file_name = "Sway drift force " + str(heading_angle)
+                    plt.ylim(-10,20)
+                elif label == "N_W":
+                    file_name = "Yaw moment " + str(heading_angle)
+                    plt.ylim(-5,14)
+                final_path = ppt_image_path + file_name + ".png"
+                os.makedirs(os.path.dirname(final_path), exist_ok=True)
+                plt.savefig(final_path, dpi=300)
+                plt.close()
+    
 if __name__ == "__main__":
-    main()
-    L = 170
-    B = 25.4
-    # X_W, Y_W, N_W = match_wave_force(mmg_coefficients.S175, 4, 226, 164, 0.7)
-    # X_W = - X_W * 1000/ (1025 * 9.81 * B ** 2 * 1 ** 2 / L)
-    # Y_W = - Y_W * 1000/ (1025 * 9.81 * B ** 2 * 1 ** 2 / L)
-    # N_W = - N_W * 1000/ (1025 * 9.81 * B ** 3 * 1 ** 2 / L)
-    # print(X_W, Y_W, N_W)
-    wave_force_plot()
+    # ship_type = mmg_coefficients.S175
+    ship_type = mmg_coefficients.KVLCC2
+    main(ship_type)
+    wave_force_plot(ship_type)
 elif __name__ == "wave_data_check":
-    main()
+    #main()
+    pass

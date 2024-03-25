@@ -5,6 +5,22 @@ import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
+"""
+KVLCC2 Turning Test Froude Number sheet
+            λ/L=0.7	    λ/L=1.0	    λ/L=1.2
+Head sea	0.1	        0.079	    0.094
+(χ=180°)			
+Beam sea	0.138	    0.138	    0.138
+(χ=270°)			
+
+S175 Turning Test Froude Number sheet
+            λ/L=0.7	    λ/L=1.0	    λ/L=1.2
+Head sea	0.15	    0.15	    0.15
+(χ=180°)			
+Beam sea	0.15	    0.15	    0.15
+(χ=270°)			
+
+"""
 
 ship_type = mmg_coefficients.Ship("empty", mmg_coefficients.PrincipalDimensions(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0), mmg_coefficients.ManeuveringParams(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0))
 
@@ -42,7 +58,16 @@ n_const = 10.05
 max_δ_rad = -35 * np.pi / 180.0  # [rad]
 rudder_rate = 12 * np.pi / 180.0
 
-duration = 150  # [s]
+
+# ship_type = mmg_coefficients.KVLCC2
+# n_const = 10.05
+# # steering_rate = 1.76 * 4  # [°/s]
+# n_const = 11.8
+# max_δ_rad = 35 * np.pi / 180.0  # [rad]
+# rudder_rate = 11.8 * np.pi / 180.0
+# u0 = 1.1767
+
+duration = 500  # [s]
 
 growing_rate = 10
 sampling = duration * growing_rate
@@ -62,7 +87,7 @@ for i in range(1, len(time_list)):
         δ_rad_list[i] = δ
 sol = 0
 
-knot = 12
+knot = 15
 velocity = knot / 1.944
 
 if ship_type.name == "S175":
@@ -70,6 +95,7 @@ if ship_type.name == "S175":
     u0 = 0.879
 elif ship_type.name == "KVLCC2":
     froude_number = velocity  / np.sqrt(9.81 * ship_type.principal_dimensions.Lpp / ship_type.principal_dimensions.scale)
+    u0 = 15/1.9441*np.sqrt(7/320)
 
 wave_frequency_KVLCC2 = [0.3 + 0.2 * i for i in range(0, 7)]
 wave_frequency_S175 = [0.35 + 0.05 * i for i in range(0, 11)]
@@ -77,11 +103,12 @@ wave_frequency_S175 = [0.35 + 0.05 * i for i in range(0, 11)]
 if ship_type.name == "S175":
     wave_frequency = 1.2
 elif ship_type.name == "KVLCC2":
-    wave_frequency = 0.7
-wave_angle = 90
+    wave_frequency = 1.2
+wave_angle = 270
 wave_amplitude = 0.01 * ship_type.principal_dimensions.Lpp
 
 npm_list = np.array([n_const for i in range(sampling)])
+wave_data_check.main(ship_type)
 Wave_function_var = [wave_frequency, wave_angle, wave_amplitude]
 sol = mmg_equations.simulate(ship_type, time_list,δ_rad_list,npm_list, state="wave", Wave_function_var=Wave_function_var, u0 = u0, v0=0.0, r0=0.0, method="RK45")
 
@@ -91,6 +118,7 @@ if sol == 0:
 
 result = sol.sol(time_list)
 
+mmg_equations.calculate_drift_data()
 ship_type.register_simulation_result(time_list, result[0], result[1], result[2], result[3], result[4], result[5])
 
 ship_type.draw_xy_trajectory(save_fig_path="trajectory.png")
